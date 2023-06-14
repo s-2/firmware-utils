@@ -18,7 +18,8 @@
 #include <openssl/aes.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
-#include <openssl/sha.h>
+
+#include <openssl/evp.h>
 
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -52,9 +53,10 @@ FILE *output_file;
 void image_encrypt(void)
 {
 	char buf[HEADER_LEN];
-	SHA512_CTX digest;
-	SHA512_CTX digest_post;
-	SHA512_CTX digest_vendor;
+	EVP_MD *sha512;
+	EVP_MD_CTX *digest_before;
+	EVP_MD_CTX *digest_post;
+	EVP_MD_CTX *digest_vendor;
 	uint32_t payload_length_before, pad_len, sizebuf;
 	unsigned char md_before[SHA512_DIGEST_LENGTH];
 	unsigned char md_post[SHA512_DIGEST_LENGTH];
@@ -73,24 +75,29 @@ void image_encrypt(void)
 
 	PEM_read_bio_RSAPrivateKey(rsa_private_bio, &rsa, NULL, NULL);
 
-	SHA512_Init(&digest);
-	SHA512_Init(&digest_post);
+	digest_before = EVP_MD_CTX_new();
+	digest_post = EVP_MD_CTX_new();
+	digest_vendor = EVP_MD_CTX_new();
+	sha512 = EVP_MD_fetch(NULL, "SHA512", NULL);
+	EVP_DigestInit_ex(digest_before, sha512, NULL);
+	EVP_DigestInit_ex(digest_post, sha512, NULL);
+	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
 	AES_set_encrypt_key(&vendor_key[0], 128, &enc_key);
 
 	while ((read_bytes = fread(&readbuf, 1, BUFSIZE, input_file)) == BUFSIZE) {
-		SHA512_Update(&digest, &readbuf[0], read_bytes);
+		EVP_DigestUpdate(digest_before, &readbuf[0], read_bytes);
 		read_total += read_bytes;
 
 		AES_cbc_encrypt(&readbuf[0], encbuf, BUFSIZE, &enc_key, aes_iv, AES_ENCRYPT);
 		fwrite(&encbuf, 1, BUFSIZE, output_file);
 
-		SHA512_Update(&digest_post, &encbuf[0], BUFSIZE);
+		EVP_DigestUpdate(digest_post, &encbuf[0], BUFSIZE);
 	}
 
 	// handle last block of data (read_bytes < BUFSIZE)
-	SHA512_Update(&digest, &readbuf[0], read_bytes);
+	EVP_DigestUpdate(digest_before, &readbuf[0], read_bytes);
 	read_total += read_bytes;
 
 	pad_len = AES_BLOCK_SIZE - (read_total % AES_BLOCK_SIZE);
@@ -101,30 +108,32 @@ void image_encrypt(void)
 	AES_cbc_encrypt(&readbuf[0], encbuf, read_bytes + pad_len, &enc_key, aes_iv, AES_ENCRYPT);
 	fwrite(&encbuf, 1, read_bytes + pad_len, output_file);
 
-	SHA512_Update(&digest_post, &encbuf[0], read_bytes + pad_len);
+	EVP_DigestUpdate(digest_post, &encbuf[0], read_bytes + pad_len);
 
 	fclose(input_file);
 	payload_length_before = read_total;
 	printf("\npayload_length_before: %li\n", read_total);
 
-	// copy digest state, since we need another one with vendor key appended,
-	// without having to re-hash the whole file (SHA512_Final is destructive)
-	memcpy(&digest_vendor, &digest, sizeof(SHA512_CTX));
+	// copy digest state, since we need another one with vendor key appended
+	EVP_MD_CTX_copy_ex(digest_vendor, digest_before);
 
-	SHA512_Final(&md_before[0], &digest);
+	EVP_DigestFinal_ex(digest_before, &md_before[0], NULL);
+	EVP_MD_CTX_free(digest_before);
 
 	printf("\ndigest_before: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
 		printf("%02x", md_before[i]);
 
-	SHA512_Update(&digest_vendor, &vendor_key[0], AES_BLOCK_SIZE);
-	SHA512_Final(&md_vendor[0], &digest_vendor);
+	EVP_DigestUpdate(digest_vendor, &vendor_key[0], AES_BLOCK_SIZE);
+	EVP_DigestFinal_ex(digest_vendor, &md_vendor[0], NULL);
+	EVP_MD_CTX_free(digest_vendor);
 
 	printf("\ndigest_vendor: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
 		printf("%02x", md_vendor[i]);
 
-	SHA512_Final(&md_post[0], &digest_post);
+	EVP_DigestFinal_ex(digest_post, &md_post[0], NULL);
+	EVP_MD_CTX_free(digest_post);
 
 	printf("\ndigest_post: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
@@ -188,9 +197,10 @@ void image_decrypt(void)
 	unsigned char md_post_actual[SHA512_DIGEST_LENGTH];
 	unsigned char md_before_actual[SHA512_DIGEST_LENGTH];
 	unsigned char md_vendor_actual[SHA512_DIGEST_LENGTH];
-	SHA512_CTX digest_post;
-	SHA512_CTX digest_before;
-	SHA512_CTX digest_vendor;
+	EVP_MD *sha512;
+	EVP_MD_CTX *digest_before;
+	EVP_MD_CTX *digest_post;
+	EVP_MD_CTX *digest_vendor;
 
 	printf("\ndecrypt mode\n");
 
@@ -221,8 +231,13 @@ void image_decrypt(void)
 	fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file);
 
 	// file should be at position HEADER_LEN now, start AES decryption
-	SHA512_Init(&digest_post);
-	SHA512_Init(&digest_before);
+	digest_before = EVP_MD_CTX_new();
+	digest_post = EVP_MD_CTX_new();
+	digest_vendor = EVP_MD_CTX_new();
+	sha512 = EVP_MD_fetch(NULL, "SHA512", NULL);
+	EVP_DigestInit_ex(digest_before, sha512, NULL);
+	EVP_DigestInit_ex(digest_post, sha512, NULL);
+	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
 	AES_set_decrypt_key(&vendor_key[0], 128, &enc_key);
@@ -237,7 +252,7 @@ void image_decrypt(void)
 
 		read_total += read_bytes;
 
-		SHA512_Update(&digest_post, &readbuf[0], read_bytes);
+		EVP_DigestUpdate(digest_post, &readbuf[0], read_bytes);
 
 		AES_cbc_encrypt(&readbuf[0], &encbuf[0], read_bytes, &enc_key, aes_iv, AES_DECRYPT);
 
@@ -245,24 +260,25 @@ void image_decrypt(void)
 		// do not hash decrypted padding
 		if (read_total > payload_length_before) {
 			// only calc hash for data before padding
-			SHA512_Update(&digest_before, &encbuf[0], read_bytes - pad_len);
+			EVP_DigestUpdate(digest_before, &encbuf[0], read_bytes - pad_len);
 			fwrite(&encbuf[0], 1, read_bytes - pad_len, output_file);
 
-			// copy state of digest, since SHA512_Final is desctructive
-			memcpy(&digest_vendor, &digest_before, sizeof(SHA512_CTX));
+			// copy digest state, since we need another one with vendor key appended
+			EVP_MD_CTX_copy_ex(digest_vendor, digest_before);
 
 			// append vendor_key
-			SHA512_Update(&digest_vendor, &vendor_key[0], AES_BLOCK_SIZE);
+			EVP_DigestUpdate(digest_vendor, &vendor_key[0], AES_BLOCK_SIZE);
 		} else {
 			// calc hash for all of read_bytes
-			SHA512_Update(&digest_before, &encbuf[0], read_bytes);
+			EVP_DigestUpdate(digest_before, &encbuf[0], read_bytes);
 			fwrite(&encbuf[0], 1, read_bytes, output_file);
 		}
 	}
 
 	fclose(output_file);
 
-	SHA512_Final(&md_post_actual[0], &digest_post);
+	EVP_DigestFinal_ex(digest_post, &md_post_actual[0], NULL);
+	EVP_MD_CTX_free(digest_post);
 
 	printf("\ndigest_post: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
@@ -273,7 +289,8 @@ void image_decrypt(void)
 		exit(1);
 	}
 
-	SHA512_Final(&md_before_actual[0], &digest_before);
+	EVP_DigestFinal_ex(digest_before, &md_before_actual[0], NULL);
+	EVP_MD_CTX_free(digest_before);
 
 	printf("\ndigest_before: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
@@ -284,7 +301,8 @@ void image_decrypt(void)
 		exit(1);
 	}
 
-	SHA512_Final(&md_vendor_actual[0], &digest_vendor);
+	EVP_DigestFinal_ex(digest_vendor, &md_vendor_actual[0], NULL);
+	EVP_MD_CTX_free(digest_vendor);
 
 	printf("\ndigest_vendor: ");
 	for (i = 0; i < SHA512_DIGEST_LENGTH; i++)
