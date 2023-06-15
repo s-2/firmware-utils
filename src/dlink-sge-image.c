@@ -58,24 +58,21 @@ void image_encrypt(void)
 	EVP_MD_CTX *digest_before;
 	EVP_MD_CTX *digest_post;
 	EVP_MD_CTX *digest_vendor;
+	EVP_PKEY *signing_key;
+	EVP_PKEY_CTX *rsa_ctx;
 	uint32_t payload_length_before, pad_len, sizebuf;
 	unsigned char md_before[SHA512_DIGEST_LENGTH];
 	unsigned char md_post[SHA512_DIGEST_LENGTH];
 	unsigned char md_vendor[SHA512_DIGEST_LENGTH];
 	unsigned char sigret[RSA_KEY_LENGTH_BYTES];
-	unsigned int siglen = RSA_KEY_LENGTH_BYTES;
+	size_t siglen;
 	char footer[] = {0x00, 0x00, 0x00, 0x00, 0x30};
 
 	// seek to position 1756 (begin of AES-encrypted data),
 	// write image headers later
 	memset(buf, 0, HEADER_LEN);
 	fwrite(&buf, 1, HEADER_LEN, output_file);
-
-	RSA *rsa = RSA_new();
 	BIO *rsa_private_bio = BIO_new_mem_buf(key2_pem, -1);
-
-	PEM_read_bio_RSAPrivateKey(rsa_private_bio, &rsa, NULL, NULL);
-
 	digest_before = EVP_MD_CTX_new();
 	digest_post = EVP_MD_CTX_new();
 	digest_vendor = EVP_MD_CTX_new();
@@ -83,6 +80,12 @@ void image_encrypt(void)
 	EVP_DigestInit_ex(digest_before, sha512, NULL);
 	EVP_DigestInit_ex(digest_post, sha512, NULL);
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
+
+	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, NULL, NULL);
+	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
+
+	EVP_PKEY_sign_init(rsa_ctx);
+	EVP_PKEY_CTX_set_signature_md(rsa_ctx, sha512);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
 	aes_ctx = EVP_CIPHER_CTX_new();
@@ -171,14 +174,16 @@ void image_encrypt(void)
 	fwrite(&sigret[0], 1, RSA_KEY_LENGTH_BYTES, output_file);
 
 	// sign md_before
-	RSA_sign(NID_sha512, &md_before[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
+	//RSA_sign(NID_sha512, &md_before[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
+	EVP_PKEY_sign(rsa_ctx, &sigret[0], &siglen, &md_before[0], SHA512_DIGEST_LENGTH);
 	printf("\nsigned before:\n");
 	for (i = 0; i < RSA_KEY_LENGTH_BYTES; i++)
 		printf("%02x", sigret[i]);
 	fwrite(&sigret[0], 1, RSA_KEY_LENGTH_BYTES, output_file);
 
 	// sign md_post
-	RSA_sign(NID_sha512, &md_post[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
+	//RSA_sign(NID_sha512, &md_post[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
+	EVP_PKEY_sign(rsa_ctx, &sigret[0], &siglen, &md_post[0], SHA512_DIGEST_LENGTH);
 	printf("\nsigned post:\n");
 	for (i = 0; i < RSA_KEY_LENGTH_BYTES; i++)
 		printf("%02x", sigret[i]);
@@ -189,14 +194,14 @@ void image_encrypt(void)
 
 void image_decrypt(void)
 {
-	RSA *rsa = RSA_new();
-	BIO *rsa_public_bio = BIO_new_mem_buf(public_pem, -1);
 	char magic[4];
 	uint32_t payload_length_before, payload_length_post, pad_len;
 	char salt[AES_BLOCK_SIZE];
 	char md_vendor[SHA512_DIGEST_LENGTH];
 	char md_before[SHA512_DIGEST_LENGTH];
 	char md_post[SHA512_DIGEST_LENGTH];
+	EVP_PKEY *public_key;
+	EVP_PKEY_CTX *rsa_ctx;
 	unsigned char rsa_sign_before[RSA_KEY_LENGTH_BYTES];
 	unsigned char rsa_sign_post[RSA_KEY_LENGTH_BYTES];
 	unsigned char md_post_actual[SHA512_DIGEST_LENGTH];
@@ -209,8 +214,9 @@ void image_decrypt(void)
 
 	printf("\ndecrypt mode\n");
 
-	RSA_print(rsa_public_bio, rsa, 0);
-	PEM_read_bio_RSAPublicKey(rsa_public_bio, &rsa, NULL, NULL);
+	BIO *rsa_public_bio = BIO_new_mem_buf(public_pem, -1);
+	public_key = PEM_read_bio_PUBKEY(rsa_public_bio, NULL, NULL, NULL);
+	rsa_ctx = EVP_PKEY_CTX_new(public_key, NULL);
 
 	fread(&magic, 1, HEAD_MAGIC_LEN, input_file);
 	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0)	{
@@ -323,16 +329,19 @@ void image_decrypt(void)
 		exit(1);
 	}
 
-	if (RSA_verify(NID_sha512, &md_before_actual[0], SHA512_DIGEST_LENGTH, \
-		&rsa_sign_before[0], RSA_KEY_LENGTH_BYTES, rsa)) {
+	EVP_PKEY_verify_init(rsa_ctx);
+	EVP_PKEY_CTX_set_signature_md(rsa_ctx, sha512);
+
+	if (EVP_PKEY_verify(rsa_ctx, &rsa_sign_before[0], RSA_KEY_LENGTH_BYTES, \
+		&md_before_actual[0], SHA512_DIGEST_LENGTH)) {
 		printf("\nsignature before verification success");
 	} else {
 		fprintf(stderr, "Signature before verification failed.\nThe decrypted" \
 			" image file may however be flashable via bootloader recovery.\n");
 	}
 
-	if (RSA_verify(NID_sha512, &md_post_actual[0], SHA512_DIGEST_LENGTH, \
-		&rsa_sign_post[0], RSA_KEY_LENGTH_BYTES, rsa)) {
+	if (EVP_PKEY_verify(rsa_ctx, &rsa_sign_post[0], RSA_KEY_LENGTH_BYTES, \
+		&md_post_actual[0], SHA512_DIGEST_LENGTH)) {
 		printf("\nsignature post verification success");
 	} else {
 		fprintf(stderr, "Signature post verification failed.\nThe decrypted" \
