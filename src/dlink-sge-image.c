@@ -45,7 +45,8 @@ unsigned long read_total;
 unsigned int i;
 
 unsigned char vendor_key[AES_BLOCK_SIZE];
-AES_KEY enc_key;
+EVP_CIPHER *aes128;
+EVP_CIPHER_CTX *aes_ctx;
 
 FILE *input_file;
 FILE *output_file;
@@ -84,13 +85,16 @@ void image_encrypt(void)
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
-	AES_set_encrypt_key(&vendor_key[0], 128, &enc_key);
+	aes_ctx = EVP_CIPHER_CTX_new();
+	EVP_EncryptInit_ex2(aes_ctx, aes128, &vendor_key[0], aes_iv, NULL);
+	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
+	int outlen;
 
 	while ((read_bytes = fread(&readbuf, 1, BUFSIZE, input_file)) == BUFSIZE) {
 		EVP_DigestUpdate(digest_before, &readbuf[0], read_bytes);
 		read_total += read_bytes;
 
-		AES_cbc_encrypt(&readbuf[0], encbuf, BUFSIZE, &enc_key, aes_iv, AES_ENCRYPT);
+		EVP_EncryptUpdate(aes_ctx, encbuf, &outlen, &readbuf[0], BUFSIZE);
 		fwrite(&encbuf, 1, BUFSIZE, output_file);
 
 		EVP_DigestUpdate(digest_post, &encbuf[0], BUFSIZE);
@@ -105,7 +109,8 @@ void image_encrypt(void)
 		pad_len = 16;
 	memset(&readbuf[read_bytes], 0, pad_len);
 
-	AES_cbc_encrypt(&readbuf[0], encbuf, read_bytes + pad_len, &enc_key, aes_iv, AES_ENCRYPT);
+	EVP_EncryptUpdate(aes_ctx, encbuf, &outlen, &readbuf[0], read_bytes + pad_len);
+	EVP_CIPHER_CTX_free(aes_ctx);
 	fwrite(&encbuf, 1, read_bytes + pad_len, output_file);
 
 	EVP_DigestUpdate(digest_post, &encbuf[0], read_bytes + pad_len);
@@ -240,7 +245,10 @@ void image_decrypt(void)
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
-	AES_set_decrypt_key(&vendor_key[0], 128, &enc_key);
+	aes_ctx = EVP_CIPHER_CTX_new();
+	EVP_DecryptInit_ex2(aes_ctx, aes128, &vendor_key[0], aes_iv, NULL);
+	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
+	int outlen;
 	pad_len = payload_length_post - payload_length_before;
 
 	while (read_total < payload_length_post) {
@@ -254,7 +262,7 @@ void image_decrypt(void)
 
 		EVP_DigestUpdate(digest_post, &readbuf[0], read_bytes);
 
-		AES_cbc_encrypt(&readbuf[0], &encbuf[0], read_bytes, &enc_key, aes_iv, AES_DECRYPT);
+		EVP_DecryptUpdate(aes_ctx, encbuf, &outlen, &readbuf[0], read_bytes);
 
 		// only update digest_before until payload_length_before,
 		// do not hash decrypted padding
@@ -276,6 +284,7 @@ void image_decrypt(void)
 	}
 
 	fclose(output_file);
+	EVP_CIPHER_CTX_free(aes_ctx);
 
 	EVP_DigestFinal_ex(digest_post, &md_post_actual[0], NULL);
 	EVP_MD_CTX_free(digest_post);
@@ -354,9 +363,14 @@ int main(int argc, char **argv)
 	}
 
 	memcpy(&aes_iv, &iv, AES_BLOCK_SIZE);
-	AES_set_decrypt_key(&key1[0], 128, &enc_key);
-	AES_cbc_encrypt(&key2[0], &vendor_key[0], AES_BLOCK_SIZE, &enc_key, \
-		aes_iv, AES_DECRYPT);
+
+	aes_ctx = EVP_CIPHER_CTX_new();
+	aes128 = EVP_CIPHER_fetch(NULL, "AES-128-CBC", NULL);
+	EVP_DecryptInit_ex2(aes_ctx, aes128, &key1[0], &aes_iv[0], NULL);
+	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
+	int outlen;
+	EVP_DecryptUpdate(aes_ctx, &vendor_key[0], &outlen, &key2[0], 16);
+	EVP_CIPHER_CTX_free(aes_ctx);
 
 	printf("\nvendor_key: ");
 	for (i = 0; i < AES_BLOCK_SIZE; i++)
