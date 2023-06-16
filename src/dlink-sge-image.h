@@ -12,23 +12,6 @@ const unsigned char iv[] =
 const unsigned char salt[] =
 	"\x67\xc6\x69\x73\x51\xff\x4a\xec\x29\xcd\xba\xab\xf2\xfb\xe3\x46";
 
-// public.pem as found in GPL tarball
-const unsigned char public_pem[] = R"(
------BEGIN RSA PUBLIC KEY-----
-MIICCgKCAgEApZLuH2XFDWuazEMpx4v6QY0ePRJm344JgkLKfeofovxvbjfX6RHU
-7yUz6b2wJnW4lomEzjrJEQFnPGNFV/oWO/NaTb3k0rPUewDzlzy/pn7ZMehqnMK1
-tHVnyQ6RZ+9qkdYEu08f79UgZcGQzSy2TLNMquAB9ffGbTHAjRfoK7cDjQX+RKWh
-OOs5tbnzhR0B4Jdd6UL9Sqoq5UisTdlnFhy67RdsItz3OOrHIiDYmfkEOqAZySKZ
-MhY7h7kkC8t1IzZOncBx3LYU4PMo9ulycAx7xDUric8xswnKoYAJbbKtp9xnGKRJ
-HPuZOZyXFdWNlTVhzG3sGdDzcpHxrFOJZ5RK/n19DArbq6w9MEInTmU3bcwDYFvX
-JCQ5Al05lgqP8vk7U4xx3AcwZUQHNVzduBuibB26jhpPXSk1Cl6NpFdXlKvcynfV
-H8XaCHy8LXhZBMiuR62Ft6YkcIpBdsQ2uBGL5GOmVFA/cOEtPZjWxzN/miXaZ7In
-iRhXEHFus6zYIPOTa9DNyAA87UCqxkem7Xgu59fgq49YwGPk+Q7HJXKgts9QTn9y
-26OtlUAq1i23EJK6GJvTmszslXbAWEi5Mlb/o7QdpEQt/gyz9udnVmfXOy4UmNXN
-ZxuVyXNomTBFRObZ5Zmn6n+xat5eBDpvct+OO1IUMC154div9i2szF0CAwEAAQ==
------END RSA PUBLIC KEY-----
-)";
-
 // key2.pem as found in GPL tarball, decrypted via openssl using
 // PEM passphrase 12345678 to reduce code and runtime complexity
 const unsigned char key2_pem[] = R"(

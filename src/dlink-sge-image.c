@@ -200,7 +200,7 @@ void image_decrypt(void)
 	char md_vendor[SHA512_DIGEST_LENGTH];
 	char md_before[SHA512_DIGEST_LENGTH];
 	char md_post[SHA512_DIGEST_LENGTH];
-	EVP_PKEY *public_key;
+	EVP_PKEY *signing_key;
 	EVP_PKEY_CTX *rsa_ctx;
 	unsigned char rsa_sign_before[RSA_KEY_LENGTH_BYTES];
 	unsigned char rsa_sign_post[RSA_KEY_LENGTH_BYTES];
@@ -214,9 +214,9 @@ void image_decrypt(void)
 
 	printf("\ndecrypt mode\n");
 
-	BIO *rsa_public_bio = BIO_new_mem_buf(public_pem, -1);
-	public_key = PEM_read_bio_PUBKEY(rsa_public_bio, NULL, NULL, NULL);
-	rsa_ctx = EVP_PKEY_CTX_new(public_key, NULL);
+	BIO *rsa_private_bio = BIO_new_mem_buf(key2_pem, -1);
+	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, NULL, NULL);
+	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 
 	fread(&magic, 1, HEAD_MAGIC_LEN, input_file);
 	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0)	{
