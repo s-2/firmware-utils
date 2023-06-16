@@ -51,6 +51,17 @@ EVP_CIPHER_CTX *aes_ctx;
 FILE *input_file;
 FILE *output_file;
 
+int pass_cb(char *buf, int size, int rwflag, void *u)
+{
+    char *tmp = "12345678";
+    size_t len = strlen(tmp);
+
+    if (len > size)
+        len = size;
+    memcpy(buf, tmp, len);
+    return len;
+}
+
 void image_encrypt(void)
 {
 	char buf[HEADER_LEN];
@@ -81,7 +92,7 @@ void image_encrypt(void)
 	EVP_DigestInit_ex(digest_post, sha512, NULL);
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
-	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, NULL, NULL);
+	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
 	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 
 	EVP_PKEY_sign_init(rsa_ctx);
@@ -215,7 +226,7 @@ void image_decrypt(void)
 	printf("\ndecrypt mode\n");
 
 	BIO *rsa_private_bio = BIO_new_mem_buf(key2_pem, -1);
-	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, NULL, NULL);
+	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
 	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 
 	fread(&magic, 1, HEAD_MAGIC_LEN, input_file);
