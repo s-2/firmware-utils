@@ -362,6 +362,21 @@ void image_decrypt(void)
 	printf("\n");
 }
 
+/*
+  generate legacy vendor key for COVR-C1200, COVR-P2500, DIR-882, DIR-2660, ...
+  decrypt ciphertext key2 using aes128 with key1 and iv, write result to *vkey
+*/
+void generate_vendorkey_legacy(unsigned char *vkey)
+{
+	int outlen;
+	memcpy(&aes_iv, &iv, AES_BLOCK_SIZE);
+	aes_ctx = EVP_CIPHER_CTX_new();
+	EVP_DecryptInit_ex2(aes_ctx, aes128, &key1[0], &aes_iv[0], NULL);
+	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
+	EVP_DecryptUpdate(aes_ctx, vkey, &outlen, &key2[0], 16);
+	EVP_CIPHER_CTX_free(aes_ctx);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2 || argc > 4) {
@@ -382,15 +397,8 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	memcpy(&aes_iv, &iv, AES_BLOCK_SIZE);
-
-	aes_ctx = EVP_CIPHER_CTX_new();
 	aes128 = EVP_CIPHER_fetch(NULL, "AES-128-CBC", NULL);
-	EVP_DecryptInit_ex2(aes_ctx, aes128, &key1[0], &aes_iv[0], NULL);
-	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
-	int outlen;
-	EVP_DecryptUpdate(aes_ctx, &vendor_key[0], &outlen, &key2[0], 16);
-	EVP_CIPHER_CTX_free(aes_ctx);
+	generate_vendorkey_legacy(&vendor_key[0]);
 
 	printf("\nvendor_key: ");
 	for (i = 0; i < AES_BLOCK_SIZE; i++)
