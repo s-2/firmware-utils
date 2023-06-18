@@ -377,6 +377,50 @@ void generate_vendorkey_legacy(unsigned char *vkey)
 	EVP_CIPHER_CTX_free(aes_ctx);
 }
 
+/*
+  helper function for generate_vendorkey_dimgkey()
+  deinterleave input in chunks of 8 bytes according to pattern,
+  last block shorter than 8 bytes is appended in reverse order
+*/
+void deinterleave(unsigned char *enk, size_t len, unsigned char *vkey)
+{
+	unsigned char i, pattern = 0;
+
+	while(len >= INTERLEAVE_BLOCK_SIZE)
+	{
+		for(i = 0; i < INTERLEAVE_BLOCK_SIZE; i++)
+			*(vkey + i) = *(enk + interleaving_pattern[pattern][i]);
+
+		vkey += INTERLEAVE_BLOCK_SIZE;
+		enk += INTERLEAVE_BLOCK_SIZE;
+		len -= INTERLEAVE_BLOCK_SIZE;
+
+		if(pattern++ >= INTERLEAVE_BLOCK_SIZE)
+			pattern = 0;
+	}
+
+	for(i = 0; i < len; i++)
+		*(vkey + i) = *(enk + (len - i - 1));
+}
+
+/*
+  generate vendor key for COVR-X1860, DIR-X3260, ...
+  base64 decode enk, pass to deinterleave, result will be in *vkey
+*/
+void generate_vendorkey_dimgkey(const unsigned char *enk, size_t len, unsigned char *vkey)
+{
+	unsigned char *decode_buf = malloc(3 * (len / 4));
+	int outlen;
+	EVP_ENCODE_CTX *base64_ctx = EVP_ENCODE_CTX_new();
+	EVP_DecodeInit(base64_ctx);
+	EVP_DecodeUpdate(base64_ctx, decode_buf, &outlen, enk, len);
+	EVP_DecodeFinal(base64_ctx, decode_buf + outlen, &outlen);
+	EVP_ENCODE_CTX_free(base64_ctx);
+
+	// limit deinterleaving output to first 16 bytes
+	deinterleave(decode_buf, AES_BLOCK_SIZE, vkey);
+}
+
 int main(int argc, char **argv)
 {
 	if (argc < 2 || argc > 4) {
