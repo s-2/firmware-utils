@@ -39,11 +39,11 @@ const unsigned char interleaving_pattern[INTERLEAVE_BLOCK_SIZE][INTERLEAVE_BLOCK
 };
 
 /*
-  key2.pem as found in GPL tarball, e.g.:
+  key.pem as found in GPL tarball, e.g.:
   COVRP2500A1_FW101/COVRP2500_GPL_Release/package/tw-prog.priv/imgcrypt/key.pem
   encrypted with passphrase: "12345678"
 */
-const unsigned char key2_pem[] = R"(
+const unsigned char key_legacy_pem[] = R"(
 -----BEGIN RSA PRIVATE KEY-----
 Proc-Type: 4,ENCRYPTED
 DEK-Info: AES-256-CBC,EAA1FD02CDBC7AA7E62AC821D47823F2

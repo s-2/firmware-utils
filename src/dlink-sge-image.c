@@ -9,7 +9,7 @@
  *   gcc -lcrypto dlink-sge-image.c -o dlink-sge-image
  *
  * Usage:
- *   ./dlink-sge-image infile outfile [-d: decrypt]
+ *   ./dlink-sge-image DEVICE_MODEL infile outfile [-d: decrypt]
  *
  */
 
@@ -45,6 +45,7 @@ unsigned long read_total;
 unsigned int i;
 
 unsigned char vendor_key[AES_BLOCK_SIZE];
+BIO *rsa_private_bio;
 EVP_CIPHER *aes128;
 EVP_CIPHER_CTX *aes_ctx;
 
@@ -83,7 +84,6 @@ void image_encrypt(void)
 	// write image headers later
 	memset(buf, 0, HEADER_LEN);
 	fwrite(&buf, 1, HEADER_LEN, output_file);
-	BIO *rsa_private_bio = BIO_new_mem_buf(key2_pem, -1);
 	digest_before = EVP_MD_CTX_new();
 	digest_post = EVP_MD_CTX_new();
 	digest_vendor = EVP_MD_CTX_new();
@@ -225,7 +225,6 @@ void image_decrypt(void)
 
 	printf("\ndecrypt mode\n");
 
-	BIO *rsa_private_bio = BIO_new_mem_buf(key2_pem, -1);
 	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
 	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 
@@ -423,32 +422,54 @@ void generate_vendorkey_dimgkey(const unsigned char *enk, size_t len, unsigned c
 
 int main(int argc, char **argv)
 {
-	if (argc < 2 || argc > 4) {
+	if (argc < 3 || argc > 5) {
 		fprintf(stderr, "Usage:\n"
-			"\tdlink-sge-image infile outfile [-d: decrypt]\n\n");
+			"\tdlink-sge-image DEVICE_MODEL infile outfile [-d: decrypt]\n\n"
+			"DEVICE_MODEL can be any of:\n"
+			"\tCOVR-C1200"
+			"\tCOVR-P2500"
+			"\tCOVR-X1860"
+			"\tDIR-X3260"
+			"\t(any other value will default to COVR-C1200/P2500 keys)"
+			);
 		exit(1);
 	}
 
-	input_file = fopen(argv[1], "rb");
+	input_file = fopen(argv[2], "rb");
 	if (input_file == NULL) {
 		fprintf(stderr, "Input File %s could not be opened.\n", argv[1]);
 		exit(1);
 	}
 
-	output_file = fopen(argv[2], "wb");
+	output_file = fopen(argv[3], "wb");
 	if (input_file == NULL) {
 		fprintf(stderr, "Output File %s could not be opened.\n", argv[2]);
 		exit(1);
 	}
 
 	aes128 = EVP_CIPHER_fetch(NULL, "AES-128-CBC", NULL);
-	generate_vendorkey_legacy(&vendor_key[0]);
+
+	if(strncmp(argv[1], "COVR-X1860", 10) == 0)
+	{
+		generate_vendorkey_dimgkey(enk_covrx1860, sizeof(enk_covrx1860), &vendor_key[0]);
+		rsa_private_bio = BIO_new_mem_buf(key_covrx1860_pem, -1);
+	}
+	else if(strncmp(argv[1], "DIR-X3260", 9) == 0)
+	{
+		generate_vendorkey_dimgkey(enk_dirx3260, sizeof(enk_dirx3260), &vendor_key[0]);
+		rsa_private_bio = BIO_new_mem_buf(key_dirx3260_pem, -1);
+	}
+	else
+	{
+		generate_vendorkey_legacy(&vendor_key[0]);
+		rsa_private_bio = BIO_new_mem_buf(key_legacy_pem, -1);
+	}
 
 	printf("\nvendor_key: ");
 	for (i = 0; i < AES_BLOCK_SIZE; i++)
 		printf("%02x", vendor_key[i]);
 
-	if (argc == 4 && strncmp(argv[3], "-d", 2) == 0)
+	if (argc == 5 && strncmp(argv[4], "-d", 2) == 0)
 		image_decrypt();
 	else
 		image_encrypt();
