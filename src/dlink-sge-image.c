@@ -459,6 +459,11 @@ int main(int argc, char **argv)
 		generate_vendorkey_dimgkey(enk_dirx3260, sizeof(enk_dirx3260), &vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_dirx3260_pem, -1);
 	}
+	else if(strncmp(argv[1], "DIR-1260", 8) == 0)
+	{
+		generate_vendorkey_legacy(&vendor_key[0]);
+		rsa_private_bio = BIO_new_mem_buf(key_dir1260_pem, -1);
+	}
 	else
 	{
 		generate_vendorkey_legacy(&vendor_key[0]);
