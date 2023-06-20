@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later OR MIT
 /*
- * Copyright (C) 2021 Sebastian Schaper <openwrt@sebastianschaper.net>
+ * Copyright (C) 2023 Sebastian Schaper <openwrt@sebastianschaper.net>
  *
  * This tool encrypts factory images for certain D-Link Devices
  * manufactured by SGE / T&W, e.g. COVR-C1200, COVR-P2500, DIR-882, ...
- *
- * Build instructions:
- *   gcc -lcrypto dlink-sge-image.c -o dlink-sge-image
  *
  * Usage:
  *   ./dlink-sge-image DEVICE_MODEL infile outfile [-d: decrypt]
@@ -426,11 +423,19 @@ int main(int argc, char **argv)
 		fprintf(stderr, "Usage:\n"
 			"\tdlink-sge-image DEVICE_MODEL infile outfile [-d: decrypt]\n\n"
 			"DEVICE_MODEL can be any of:\n"
-			"\tCOVR-C1200"
-			"\tCOVR-P2500"
-			"\tCOVR-X1860"
-			"\tDIR-X3260"
-			"\t(any other value will default to COVR-C1200/P2500 keys)"
+			"\tCOVR-C1200\n"
+			"\tCOVR-P2500\n"
+			"\tCOVR-X1860\n"
+			"\tDIR-853\n"
+			"\tDIR-867\n"
+			"\tDIR-878\n"
+			"\tDIR-882\n"
+			"\tDIR-1935\n"
+			"\tDIR-X3260\n\n"
+			"Any other value will default to COVR-C1200/P2500/DIR-8xx keys\n"
+			"which may work to decrypt images for several further devices,\n"
+			"however there are currently no private keys known that would\n"
+			"allow for signing images to be used for flashing those devices.\n\n"
 			);
 		exit(1);
 	}
@@ -466,6 +471,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
+		/* COVR-C1200, COVR-P2500, DIR-853, DIR-867, DIR-878, DIR-882, DIR-1935 */
 		generate_vendorkey_legacy(&vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_legacy_pem, -1);
 	}
