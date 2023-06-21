@@ -461,13 +461,13 @@ int main(int argc, char **argv)
 
 	input_file = fopen(argv[2], "rb");
 	if (input_file == NULL) {
-		fprintf(stderr, "Input File %s could not be opened.\n", argv[1]);
+		fprintf(stderr, "Input File %s could not be opened.\n", argv[2]);
 		exit(1);
 	}
 
 	output_file = fopen(argv[3], "wb");
 	if (input_file == NULL) {
-		fprintf(stderr, "Output File %s could not be opened.\n", argv[2]);
+		fprintf(stderr, "Output File %s could not be opened.\n", argv[3]);
 		exit(1);
 	}
 
