@@ -222,31 +222,38 @@ void image_decrypt(void)
 
 	printf("\ndecrypt mode\n");
 
-	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
-	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
-
-	fread(&magic, 1, HEAD_MAGIC_LEN, input_file);
+	if(fread(&magic, 1, HEAD_MAGIC_LEN, input_file) == 0)
+		goto error;
 	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0) {
 		fprintf(stderr, "Input File header magic does not match '%s'.\n"
 			"Maybe this file is not encrypted?\n", HEAD_MAGIC);
 		exit(1);
 	}
 
-	fread((char *) &payload_length_before, 1, 4, input_file);
-	fread((char *) &payload_length_post, 1, 4, input_file);
+	if(fread((char *) &payload_length_before, 1, 4, input_file) == 0)
+		goto error;
+	if(fread((char *) &payload_length_post, 1, 4, input_file) == 0)
+		goto error;
 	payload_length_before = ntohl(payload_length_before);
 	payload_length_post   = ntohl(payload_length_post);
 
-	fread(salt, 1, AES_BLOCK_SIZE, input_file);
-	fread(md_vendor, 1, SHA512_DIGEST_LENGTH, input_file);
-	fread(md_before, 1, SHA512_DIGEST_LENGTH, input_file);
-	fread(md_post, 1, SHA512_DIGEST_LENGTH, input_file);
+	if(fread(salt, 1, AES_BLOCK_SIZE, input_file) == 0)
+		goto error;
+	if(fread(md_vendor, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+		goto error;
+	if(fread(md_before, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+		goto error;
+	if(fread(md_post, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+		goto error;
 
 	// skip rsa_pub
-	fread(readbuf, 1, RSA_KEY_LENGTH_BYTES, input_file);
+	if(fread(readbuf, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+		goto error;
 
-	fread(rsa_sign_before, 1, RSA_KEY_LENGTH_BYTES, input_file);
-	fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file);
+	if(fread(rsa_sign_before, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+		goto error;
+	if(fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+		goto error;
 
 	// file should be at position HEADER_LEN now, start AES decryption
 	digest_before = EVP_MD_CTX_new();
@@ -337,6 +344,8 @@ void image_decrypt(void)
 		exit(1);
 	}
 
+	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
+	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 	EVP_PKEY_verify_init(rsa_ctx);
 	EVP_PKEY_CTX_set_signature_md(rsa_ctx, sha512);
 
@@ -357,6 +366,14 @@ void image_decrypt(void)
 	}
 
 	printf("\n");
+
+	return;
+
+error:
+	fprintf(stderr, "Error reading header fields from input file.\n");
+	fclose(input_file);
+	fclose(output_file);
+	exit(1);
 }
 
 /*
