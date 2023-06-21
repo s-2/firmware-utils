@@ -182,7 +182,6 @@ void image_encrypt(void)
 	fwrite(&sigret[0], 1, RSA_KEY_LENGTH_BYTES, output_file);
 
 	// sign md_before
-	//RSA_sign(NID_sha512, &md_before[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
 	EVP_PKEY_sign(rsa_ctx, &sigret[0], &siglen, &md_before[0], SHA512_DIGEST_LENGTH);
 	printf("\nsigned before:\n");
 	for (i = 0; i < RSA_KEY_LENGTH_BYTES; i++)
@@ -190,12 +189,13 @@ void image_encrypt(void)
 	fwrite(&sigret[0], 1, RSA_KEY_LENGTH_BYTES, output_file);
 
 	// sign md_post
-	//RSA_sign(NID_sha512, &md_post[0], SHA512_DIGEST_LENGTH, &sigret[0], &siglen, rsa);
 	EVP_PKEY_sign(rsa_ctx, &sigret[0], &siglen, &md_post[0], SHA512_DIGEST_LENGTH);
 	printf("\nsigned post:\n");
 	for (i = 0; i < RSA_KEY_LENGTH_BYTES; i++)
 		printf("%02x", sigret[i]);
 	fwrite(&sigret[0], 1, RSA_KEY_LENGTH_BYTES, output_file);
+
+	printf("\n");
 
 	fclose(output_file);
 }
@@ -226,7 +226,7 @@ void image_decrypt(void)
 	rsa_ctx = EVP_PKEY_CTX_new(signing_key, NULL);
 
 	fread(&magic, 1, HEAD_MAGIC_LEN, input_file);
-	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0)	{
+	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0) {
 		fprintf(stderr, "Input File header magic does not match '%s'.\n"
 			"Maybe this file is not encrypted?\n", HEAD_MAGIC);
 		exit(1);
@@ -296,6 +296,7 @@ void image_decrypt(void)
 		}
 	}
 
+	fclose(input_file);
 	fclose(output_file);
 	EVP_CIPHER_CTX_free(aes_ctx);
 
@@ -369,7 +370,7 @@ void generate_vendorkey_legacy(unsigned char *vkey)
 	aes_ctx = EVP_CIPHER_CTX_new();
 	EVP_DecryptInit_ex(aes_ctx, aes128, NULL, &key1[0], &aes_iv[0]);
 	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
-	EVP_DecryptUpdate(aes_ctx, vkey, &outlen, &key2[0], 16);
+	EVP_DecryptUpdate(aes_ctx, vkey, &outlen, &key2[0], AES_BLOCK_SIZE);
 	EVP_CIPHER_CTX_free(aes_ctx);
 }
 
