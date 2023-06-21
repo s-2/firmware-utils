@@ -431,6 +431,7 @@ int main(int argc, char **argv)
 			"\tDIR-878\n"
 			"\tDIR-882\n"
 			"\tDIR-1935\n"
+			"\tDIR-2150\n"
 			"\tDIR-X3260\n\n"
 			"Any other value will default to COVR-C1200/P2500/DIR-8xx keys\n"
 			"which may work to decrypt images for several further devices,\n"
@@ -468,6 +469,11 @@ int main(int argc, char **argv)
 	{
 		generate_vendorkey_legacy(&vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_dir1260_pem, -1);
+	}
+	else if(strncmp(argv[1], "DIR-2150", 8) == 0)
+	{
+		generate_vendorkey_legacy(&vendor_key[0]);
+		rsa_private_bio = BIO_new_mem_buf(key_dir2150_pem, -1);
 	}
 	else
 	{
