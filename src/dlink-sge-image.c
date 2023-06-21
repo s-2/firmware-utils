@@ -43,7 +43,7 @@ unsigned int i;
 
 unsigned char vendor_key[AES_BLOCK_SIZE];
 BIO *rsa_private_bio;
-EVP_CIPHER *aes128;
+const EVP_CIPHER *aes128;
 EVP_CIPHER_CTX *aes_ctx;
 
 FILE *input_file;
@@ -63,7 +63,7 @@ int pass_cb(char *buf, int size, int rwflag, void *u)
 void image_encrypt(void)
 {
 	char buf[HEADER_LEN];
-	EVP_MD *sha512;
+	const EVP_MD *sha512;
 	EVP_MD_CTX *digest_before;
 	EVP_MD_CTX *digest_post;
 	EVP_MD_CTX *digest_vendor;
@@ -84,7 +84,7 @@ void image_encrypt(void)
 	digest_before = EVP_MD_CTX_new();
 	digest_post = EVP_MD_CTX_new();
 	digest_vendor = EVP_MD_CTX_new();
-	sha512 = EVP_MD_fetch(NULL, "SHA512", NULL);
+	sha512 = EVP_sha512();
 	EVP_DigestInit_ex(digest_before, sha512, NULL);
 	EVP_DigestInit_ex(digest_post, sha512, NULL);
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
@@ -97,7 +97,7 @@ void image_encrypt(void)
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
 	aes_ctx = EVP_CIPHER_CTX_new();
-	EVP_EncryptInit_ex2(aes_ctx, aes128, &vendor_key[0], aes_iv, NULL);
+	EVP_EncryptInit_ex(aes_ctx, aes128, NULL, &vendor_key[0], aes_iv);
 	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
 	int outlen;
 
@@ -215,7 +215,7 @@ void image_decrypt(void)
 	unsigned char md_post_actual[SHA512_DIGEST_LENGTH];
 	unsigned char md_before_actual[SHA512_DIGEST_LENGTH];
 	unsigned char md_vendor_actual[SHA512_DIGEST_LENGTH];
-	EVP_MD *sha512;
+	const EVP_MD *sha512;
 	EVP_MD_CTX *digest_before;
 	EVP_MD_CTX *digest_post;
 	EVP_MD_CTX *digest_vendor;
@@ -252,14 +252,14 @@ void image_decrypt(void)
 	digest_before = EVP_MD_CTX_new();
 	digest_post = EVP_MD_CTX_new();
 	digest_vendor = EVP_MD_CTX_new();
-	sha512 = EVP_MD_fetch(NULL, "SHA512", NULL);
+	sha512 = EVP_sha512();
 	EVP_DigestInit_ex(digest_before, sha512, NULL);
 	EVP_DigestInit_ex(digest_post, sha512, NULL);
 	EVP_DigestInit_ex(digest_vendor, sha512, NULL);
 
 	memcpy(&aes_iv, &salt, AES_BLOCK_SIZE);
 	aes_ctx = EVP_CIPHER_CTX_new();
-	EVP_DecryptInit_ex2(aes_ctx, aes128, &vendor_key[0], aes_iv, NULL);
+	EVP_DecryptInit_ex(aes_ctx, aes128, NULL, &vendor_key[0], aes_iv);
 	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
 	int outlen;
 	pad_len = payload_length_post - payload_length_before;
@@ -367,7 +367,7 @@ void generate_vendorkey_legacy(unsigned char *vkey)
 	int outlen;
 	memcpy(&aes_iv, &iv, AES_BLOCK_SIZE);
 	aes_ctx = EVP_CIPHER_CTX_new();
-	EVP_DecryptInit_ex2(aes_ctx, aes128, &key1[0], &aes_iv[0], NULL);
+	EVP_DecryptInit_ex(aes_ctx, aes128, NULL, &key1[0], &aes_iv[0]);
 	EVP_CIPHER_CTX_set_padding(aes_ctx, 0);
 	EVP_DecryptUpdate(aes_ctx, vkey, &outlen, &key2[0], 16);
 	EVP_CIPHER_CTX_free(aes_ctx);
@@ -453,7 +453,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 
-	aes128 = EVP_CIPHER_fetch(NULL, "AES-128-CBC", NULL);
+	aes128 = EVP_aes_128_cbc();
 
 	if(strncmp(argv[1], "COVR-X1860", 10) == 0)
 	{
