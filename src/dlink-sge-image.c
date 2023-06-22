@@ -12,11 +12,8 @@
 
 #include "dlink-sge-image.h"
 
-#include <openssl/aes.h>
-#include <openssl/pem.h>
-#include <openssl/rsa.h>
-
 #include <openssl/evp.h>
+#include <openssl/pem.h>
 
 #include <arpa/inet.h>
 #include <stdio.h>
@@ -117,7 +114,7 @@ void image_encrypt(void)
 
 	pad_len = AES_BLOCK_SIZE - (read_total % AES_BLOCK_SIZE);
 	if (pad_len == 0)
-		pad_len = 16;
+		pad_len = AES_BLOCK_SIZE;
 	memset(&readbuf[read_bytes], 0, pad_len);
 
 	EVP_EncryptUpdate(aes_ctx, encbuf, &outlen, &readbuf[0], read_bytes + pad_len);
