@@ -220,37 +220,37 @@ void image_decrypt(void)
 	printf("\ndecrypt mode\n");
 
 	if(fread(&magic, 1, HEAD_MAGIC_LEN, input_file) == 0)
-		goto error;
+		goto error_read;
 	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0) {
 		fprintf(stderr, "Input File header magic does not match '%s'.\n"
 			"Maybe this file is not encrypted?\n", HEAD_MAGIC);
-		exit(1);
+		goto error;
 	}
 
 	if(fread((char *) &payload_length_before, 1, 4, input_file) == 0)
-		goto error;
+		goto error_read;
 	if(fread((char *) &payload_length_post, 1, 4, input_file) == 0)
-		goto error;
+		goto error_read;
 	payload_length_before = ntohl(payload_length_before);
 	payload_length_post   = ntohl(payload_length_post);
 
 	if(fread(salt, 1, AES_BLOCK_SIZE, input_file) == 0)
-		goto error;
+		goto error_read;
 	if(fread(md_vendor, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
-		goto error;
+		goto error_read;
 	if(fread(md_before, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
-		goto error;
+		goto error_read;
 	if(fread(md_post, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
-		goto error;
+		goto error_read;
 
 	// skip rsa_pub
 	if(fread(readbuf, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
-		goto error;
+		goto error_read;
 
 	if(fread(rsa_sign_before, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
-		goto error;
+		goto error_read;
 	if(fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
-		goto error;
+		goto error_read;
 
 	// file should be at position HEADER_LEN now, start AES decryption
 	digest_before = EVP_MD_CTX_new();
@@ -313,7 +313,7 @@ void image_decrypt(void)
 
 	if (strncmp(md_post, (char *) md_post_actual, SHA512_DIGEST_LENGTH) != 0) {
 		fprintf(stderr, "SHA512 post does not match file contents.\n");
-		exit(1);
+		goto error;
 	}
 
 	EVP_DigestFinal_ex(digest_before, &md_before_actual[0], NULL);
@@ -325,7 +325,7 @@ void image_decrypt(void)
 
 	if (strncmp(md_before, (char *) md_before_actual, SHA512_DIGEST_LENGTH) != 0) {
 		fprintf(stderr, "SHA512 before does not match decrypted payload.\n");
-		exit(1);
+		goto error;
 	}
 
 	EVP_DigestFinal_ex(digest_vendor, &md_vendor_actual[0], NULL);
@@ -338,7 +338,7 @@ void image_decrypt(void)
 	if (strncmp(md_vendor, (char *) md_vendor_actual, SHA512_DIGEST_LENGTH) != 0) {
 		fprintf(stderr, "SHA512 vendor does not match decrypted payload padded" \
 			" with vendor key.\n");
-		exit(1);
+		goto error;
 	}
 
 	signing_key = PEM_read_bio_PrivateKey(rsa_private_bio, NULL, pass_cb, NULL);
@@ -366,8 +366,9 @@ void image_decrypt(void)
 
 	return;
 
-error:
+error_read:
 	fprintf(stderr, "Error reading header fields from input file.\n");
+error:
 	fclose(input_file);
 	fclose(output_file);
 	exit(1);
@@ -465,6 +466,7 @@ int main(int argc, char **argv)
 	output_file = fopen(argv[3], "wb");
 	if (input_file == NULL) {
 		fprintf(stderr, "Output File %s could not be opened.\n", argv[3]);
+		fclose(input_file);
 		exit(1);
 	}
 
