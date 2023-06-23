@@ -219,7 +219,7 @@ void image_decrypt(void)
 
 	printf("\ndecrypt mode\n");
 
-	if(fread(&magic, 1, HEAD_MAGIC_LEN, input_file) == 0)
+	if (fread(&magic, 1, HEAD_MAGIC_LEN, input_file) == 0)
 		goto error_read;
 	if (strncmp(magic, HEAD_MAGIC, HEAD_MAGIC_LEN) != 0) {
 		fprintf(stderr, "Input File header magic does not match '%s'.\n"
@@ -227,29 +227,29 @@ void image_decrypt(void)
 		goto error;
 	}
 
-	if(fread((char *) &payload_length_before, 1, 4, input_file) == 0)
+	if (fread((char *) &payload_length_before, 1, 4, input_file) == 0)
 		goto error_read;
-	if(fread((char *) &payload_length_post, 1, 4, input_file) == 0)
+	if (fread((char *) &payload_length_post, 1, 4, input_file) == 0)
 		goto error_read;
 	payload_length_before = ntohl(payload_length_before);
 	payload_length_post   = ntohl(payload_length_post);
 
-	if(fread(salt, 1, AES_BLOCK_SIZE, input_file) == 0)
+	if (fread(salt, 1, AES_BLOCK_SIZE, input_file) == 0)
 		goto error_read;
-	if(fread(md_vendor, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+	if (fread(md_vendor, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
 		goto error_read;
-	if(fread(md_before, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+	if (fread(md_before, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
 		goto error_read;
-	if(fread(md_post, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
+	if (fread(md_post, 1, SHA512_DIGEST_LENGTH, input_file) == 0)
 		goto error_read;
 
 	// skip rsa_pub
-	if(fread(readbuf, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+	if (fread(readbuf, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
 		goto error_read;
 
-	if(fread(rsa_sign_before, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+	if (fread(rsa_sign_before, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
 		goto error_read;
-	if(fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
+	if (fread(rsa_sign_post, 1, RSA_KEY_LENGTH_BYTES, input_file) == 0)
 		goto error_read;
 
 	// file should be at position HEADER_LEN now, start AES decryption
@@ -398,20 +398,20 @@ void deinterleave(unsigned char *enk, size_t len, unsigned char *vkey)
 {
 	unsigned char i, pattern = 0;
 
-	while(len >= INTERLEAVE_BLOCK_SIZE)
+	while (len >= INTERLEAVE_BLOCK_SIZE)
 	{
-		for(i = 0; i < INTERLEAVE_BLOCK_SIZE; i++)
+		for (i = 0; i < INTERLEAVE_BLOCK_SIZE; i++)
 			*(vkey + i) = *(enk + interleaving_pattern[pattern][i]);
 
 		vkey += INTERLEAVE_BLOCK_SIZE;
 		enk += INTERLEAVE_BLOCK_SIZE;
 		len -= INTERLEAVE_BLOCK_SIZE;
 
-		if(pattern++ >= INTERLEAVE_BLOCK_SIZE)
+		if (pattern++ >= INTERLEAVE_BLOCK_SIZE)
 			pattern = 0;
 	}
 
-	for(i = 0; i < len; i++)
+	for (i = 0; i < len; i++)
 		*(vkey + i) = *(enk + (len - i - 1));
 }
 
@@ -472,22 +472,22 @@ int main(int argc, char **argv)
 
 	aes128 = EVP_aes_128_cbc();
 
-	if(strncmp(argv[1], "COVR-X1860", 10) == 0)
+	if (strncmp(argv[1], "COVR-X1860", 10) == 0)
 	{
 		generate_vendorkey_dimgkey(enk_covrx1860, sizeof(enk_covrx1860), &vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_covrx1860_pem, -1);
 	}
-	else if(strncmp(argv[1], "DIR-X3260", 9) == 0)
+	else if (strncmp(argv[1], "DIR-X3260", 9) == 0)
 	{
 		generate_vendorkey_dimgkey(enk_dirx3260, sizeof(enk_dirx3260), &vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_dirx3260_pem, -1);
 	}
-	else if(strncmp(argv[1], "DIR-1260", 8) == 0)
+	else if (strncmp(argv[1], "DIR-1260", 8) == 0)
 	{
 		generate_vendorkey_legacy(&vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_dir1260_pem, -1);
 	}
-	else if(strncmp(argv[1], "DIR-2150", 8) == 0)
+	else if (strncmp(argv[1], "DIR-2150", 8) == 0)
 	{
 		generate_vendorkey_legacy(&vendor_key[0]);
 		rsa_private_bio = BIO_new_mem_buf(key_dir2150_pem, -1);
