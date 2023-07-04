@@ -17,7 +17,7 @@
 #define AUH_LVPS 0x01
 #define AUH_HDR_ID 0x4842
 #define AUH_HDR_VER 0x02
-#define AUH_SEC_ID 0x04
+#define AUH_SEC_ID 0x08
 #define AUH_INFO_TYPE 0x04
 
 #define STAG_SIZE 16
