@@ -23,10 +23,10 @@
 #define BUFSIZE		4096
 
 #define HEAD_MAGIC		"SHRS"
-#define HEAD_MAGIC_LEN	4
+#define HEAD_MAGIC_LEN		4
 #define SHA512_DIGEST_LENGTH	64
 #define RSA_KEY_LENGTH_BYTES	512
-#define AES_BLOCK_SIZE	16
+#define AES_BLOCK_SIZE		16
 #define HEADER_LEN		1756
 
 unsigned char aes_iv[AES_BLOCK_SIZE];
